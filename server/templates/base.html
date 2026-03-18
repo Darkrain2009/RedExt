@@ -98,6 +98,15 @@
           <span class="font-medium">Data</span>
         </a>
 
+        <a href="{{ url_for('search') }}"
+           class="flex items-center px-4 py-3 rounded-lg text-gray-400 hover:bg-[#1c1f2b] hover:text-gray-200 transition-all group relative">
+          <div class="absolute inset-0 bg-gradient-to-r from-yellow-500/0 to-yellow-500/0 group-hover:from-yellow-500/5 group-hover:to-transparent rounded-lg transition-all"></div>
+          <svg class="w-5 h-5 mr-3 text-gray-400 group-hover:text-yellow-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <span class="font-medium">Search</span>
+        </a>
+
         <div class="pt-4 mt-4 border-t border-gray-700/50">
           <a href="{{ url_for('config') }}"
              class="flex items-center px-4 py-3 rounded-lg text-gray-400 hover:bg-[#1c1f2b] hover:text-gray-200 transition-all group relative">

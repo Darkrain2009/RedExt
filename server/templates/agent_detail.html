@@ -75,6 +75,26 @@
         <span>Last seen: {{ agent.last_seen.strftime('%Y-%m-%d %H:%M:%S') if agent.last_seen else "Never" }}</span>
       </div>
 
+      <!-- Notes Section -->
+      <div class="mt-6 border-t border-gray-700/50 pt-6">
+        <h3 class="text-lg font-medium text-gray-100 mb-3 flex items-center gap-2">
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          Agent Notes
+        </h3>
+        <textarea id="agentNotes"
+                  rows="3"
+                  placeholder="Add notes about this agent (e.g. finance dept laptop, high-value target)..."
+                  class="w-full bg-gray-900/50 text-gray-300 px-4 py-3 rounded-lg border border-gray-700/50 focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 focus:outline-none placeholder-gray-600 resize-none">{{ agent.notes if agent.notes else '' }}</textarea>
+        <div class="flex justify-end mt-2">
+          <button onclick="saveNotes()"
+                  class="px-4 py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 border border-purple-500/30 rounded-lg text-sm transition-colors">
+            Save Notes
+          </button>
+        </div>
+      </div>
+
       <!-- Tasks Section -->
       <div class="mt-8">
         <div class="flex justify-between items-center mb-4">
@@ -192,6 +212,27 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     } catch (error) {
       console.error('Error refreshing agent status:', error);
+    }
+  }
+
+  window.saveNotes = async function() {
+    const notes = document.getElementById('agentNotes').value;
+    try {
+      const response = await fetch(`/api/agents/{{ agent.agent_id }}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes })
+      });
+      if (!response.ok) throw new Error('Failed to save notes');
+      const btn = document.querySelector('button[onclick="saveNotes()"]');
+      btn.textContent = 'Saved!';
+      btn.classList.add('text-green-400', 'border-green-500/30');
+      setTimeout(() => {
+        btn.textContent = 'Save Notes';
+        btn.classList.remove('text-green-400', 'border-green-500/30');
+      }, 2000);
+    } catch (error) {
+      alert('Failed to save notes');
     }
   }
 

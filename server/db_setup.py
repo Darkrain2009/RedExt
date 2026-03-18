@@ -12,9 +12,16 @@ def setup_database():
         agent_id TEXT PRIMARY KEY,
         hostname TEXT,
         status TEXT DEFAULT 'offline',
-        last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        notes TEXT DEFAULT ''
     )
     ''')
+
+    # Add notes column to existing databases that don't have it yet
+    try:
+        cursor.execute("ALTER TABLE agents ADD COLUMN notes TEXT DEFAULT ''")
+    except Exception:
+        pass  # Column already exists
 
     # Tasks table
     cursor.execute('''

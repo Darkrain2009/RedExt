@@ -5,13 +5,15 @@ Flask-based C2 server for authorized Red Team simulation with a dark-themed dash
 
 import uuid
 import json
+import csv
+import io
 import click
 import sqlite3
 from datetime import datetime, timedelta
 from flask import (
     Flask, request, jsonify,
     render_template, redirect, url_for,
-    flash, Markup
+    flash, Markup, Response
 )
 from flask_cors import CORS
 from typing import Dict
@@ -128,7 +130,8 @@ def agent_detail(agent_id):
         'agent_id': agent['agent_id'],
         'hostname': agent['hostname'] or 'Unknown Host',
         'status': agent['status'],
-        'last_seen': last_seen_dt,  # real datetime object now
+        'last_seen': last_seen_dt,
+        'notes': agent['notes'] or '',
         'tasks': [{
             'task_id': t['task_id'],
             'description': t['description'] or 'No Description',
@@ -196,6 +199,92 @@ def data():
 def config():
     """Placeholder for any settings."""
     return "<h1>Configuration Page (Placeholder)</h1>"
+
+@app.route('/search')
+def search():
+    """Global search across all exfiltrated data."""
+    query = request.args.get('q', '').strip()
+    data_type_filter = request.args.get('type', 'ALL').upper()
+    results = []
+
+    if query:
+        conn = get_db_connection()
+        c = conn.cursor()
+        if data_type_filter == 'ALL':
+            c.execute("""
+                SELECT dr.data_id, dr.agent_id, dr.data_type, dr.payload, dr.created_at,
+                       a.hostname
+                FROM data_records dr
+                LEFT JOIN agents a ON dr.agent_id = a.agent_id
+                WHERE dr.payload LIKE ?
+                ORDER BY dr.created_at DESC
+                LIMIT 200
+            """, (f'%{query}%',))
+        else:
+            c.execute("""
+                SELECT dr.data_id, dr.agent_id, dr.data_type, dr.payload, dr.created_at,
+                       a.hostname
+                FROM data_records dr
+                LEFT JOIN agents a ON dr.agent_id = a.agent_id
+                WHERE dr.payload LIKE ? AND dr.data_type = ?
+                ORDER BY dr.created_at DESC
+                LIMIT 200
+            """, (f'%{query}%', data_type_filter))
+
+        # Get distinct data types for filter dropdown
+        c2 = conn.cursor()
+        c2.execute("SELECT DISTINCT data_type FROM data_records ORDER BY data_type")
+        data_types = [r['data_type'] for r in c2.fetchall()]
+
+        results = [dict(r) for r in c.fetchall()]
+        conn.close()
+    else:
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("SELECT DISTINCT data_type FROM data_records ORDER BY data_type")
+        data_types = [r['data_type'] for r in c.fetchall()]
+        conn.close()
+
+    return render_template('search.html', query=query, results=results,
+                           data_types=data_types if query or True else [],
+                           data_type_filter=data_type_filter)
+
+@app.route('/agent/<agent_id>/export')
+def export_agent_data(agent_id):
+    """Export agent data as JSON or CSV."""
+    fmt = request.args.get('format', 'json').lower()
+    data_type = request.args.get('type', 'ALL').upper()
+
+    conn = get_db_connection()
+    c = conn.cursor()
+    if data_type == 'ALL':
+        c.execute("SELECT * FROM data_records WHERE agent_id = ? ORDER BY created_at DESC", (agent_id,))
+    else:
+        c.execute("SELECT * FROM data_records WHERE agent_id = ? AND data_type = ? ORDER BY created_at DESC",
+                  (agent_id, data_type))
+    records = c.fetchall()
+    conn.close()
+
+    filename = f'agent_{agent_id[:8]}_{data_type}'
+
+    if fmt == 'csv':
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(['data_id', 'agent_id', 'data_type', 'payload', 'created_at'])
+        for r in records:
+            writer.writerow([r['data_id'], r['agent_id'], r['data_type'], r['payload'], r['created_at']])
+        return Response(
+            output.getvalue(),
+            mimetype='text/csv',
+            headers={'Content-Disposition': f'attachment; filename={filename}.csv'}
+        )
+    else:
+        data = [dict(r) for r in records]
+        return Response(
+            json.dumps(data, indent=2, default=str),
+            mimetype='application/json',
+            headers={'Content-Disposition': f'attachment; filename={filename}.json'}
+        )
 
 @app.route('/create_task', methods=['GET', 'POST'])
 def create_task():
@@ -739,6 +828,19 @@ def get_agent_status(agent_id):
         'status': status,
         'last_seen': last_seen
     })
+
+@app.route('/api/agents/<agent_id>/notes', methods=['POST'])
+def update_agent_notes(agent_id):
+    """Update notes for an agent."""
+    data = request.json or {}
+    notes = data.get('notes', '')
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("UPDATE agents SET notes = ? WHERE agent_id = ?", (notes, agent_id))
+    success = c.rowcount > 0
+    conn.commit()
+    conn.close()
+    return jsonify({'success': success})
 
 @app.route('/api/agents/<agent_id>', methods=['DELETE'])
 def delete_agent(agent_id):
