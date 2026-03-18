@@ -107,6 +107,15 @@
           <span class="font-medium">Search</span>
         </a>
 
+        <a href="{{ url_for('timeline') }}"
+           class="flex items-center px-4 py-3 rounded-lg text-gray-400 hover:bg-[#1c1f2b] hover:text-gray-200 transition-all group relative">
+          <div class="absolute inset-0 bg-gradient-to-r from-cyan-500/0 to-cyan-500/0 group-hover:from-cyan-500/5 group-hover:to-transparent rounded-lg transition-all"></div>
+          <svg class="w-5 h-5 mr-3 text-gray-400 group-hover:text-cyan-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span class="font-medium">Timeline</span>
+        </a>
+
         <div class="pt-4 mt-4 border-t border-gray-700/50">
           <a href="{{ url_for('config') }}"
              class="flex items-center px-4 py-3 rounded-lg text-gray-400 hover:bg-[#1c1f2b] hover:text-gray-200 transition-all group relative">

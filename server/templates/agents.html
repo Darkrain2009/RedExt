@@ -54,12 +54,21 @@
       </div>
 
       <!-- Refresh Button -->
-      <button onclick="refreshAgents(this)" 
+      <button onclick="refreshAgents(this)"
               class="bg-gray-800 hover:bg-gray-700 text-gray-200 px-4 py-2 rounded-lg flex items-center gap-2 transition-all duration-300 hover:translate-y-[-2px] border border-gray-700 hover:border-purple-500/50">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
         </svg>
         <span>Refresh</span>
+      </button>
+
+      <!-- Cleanup Button -->
+      <button onclick="document.getElementById('cleanupModal').classList.remove('hidden')"
+              class="bg-gray-800 hover:bg-red-900/30 text-red-400 px-4 py-2 rounded-lg flex items-center gap-2 transition-all duration-300 border border-gray-700 hover:border-red-500/50">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+        <span>Cleanup</span>
       </button>
     </div>
   </div>
@@ -176,6 +185,33 @@
   </div>
 </div>
 
+<!-- Cleanup Modal -->
+<div id="cleanupModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-gray-800 rounded-xl border border-gray-700/50 p-6 max-w-sm w-full space-y-4">
+    <h3 class="text-lg font-semibold text-gray-100 flex items-center gap-2">
+      <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+      </svg>
+      Cleanup Dead Agents
+    </h3>
+    <p class="text-sm text-gray-400">Delete agents and their tasks that have been offline for longer than:</p>
+    <div class="flex items-center gap-3">
+      <input type="number" id="cleanupDays" value="7" min="1"
+             class="w-24 bg-gray-900/50 text-gray-100 px-3 py-2 rounded-lg border border-gray-700 focus:ring-2 focus:ring-red-500/50 focus:outline-none text-sm">
+      <span class="text-gray-400 text-sm">days</span>
+    </div>
+    <p class="text-xs text-red-400">This permanently deletes agents and all their tasks.</p>
+    <div class="flex justify-end gap-3 pt-2">
+      <button onclick="document.getElementById('cleanupModal').classList.add('hidden')"
+              class="px-4 py-2 text-sm text-gray-400 hover:text-gray-200 transition-colors">Cancel</button>
+      <button onclick="cleanupAgents()"
+              class="px-4 py-2 text-sm bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 rounded-lg transition-colors">
+        Delete Dead Agents
+      </button>
+    </div>
+  </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   const searchInput = document.getElementById('agentSearch');
@@ -235,6 +271,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Auto-refresh every 30 seconds
   setInterval(() => refreshAgents(document.querySelector('button[onclick="refreshAgents(this)"]')), 30000);
+
+  window.cleanupAgents = async function() {
+    const days = parseInt(document.getElementById('cleanupDays').value) || 7;
+    try {
+      const response = await fetch('/api/agents/cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days })
+      });
+      const data = await response.json();
+      document.getElementById('cleanupModal').classList.add('hidden');
+      if (data.cleaned > 0) {
+        location.reload();
+      } else {
+        alert(`No agents offline for more than ${days} days found.`);
+      }
+    } catch (e) {
+      alert('Cleanup failed');
+    }
+  };
 });
 </script>
 

@@ -57,6 +57,17 @@ def setup_database():
     except Exception:
         pass  # Column already exists
 
+    # Activity / audit log
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS events (
+        event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_type TEXT NOT NULL,
+        agent_id TEXT,
+        details TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+
     conn.commit()
     conn.close()
     print("Database setup complete.")

