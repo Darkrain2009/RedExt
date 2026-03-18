@@ -37,10 +37,18 @@ def setup_database():
         agent_id TEXT NOT NULL,
         data_type TEXT,
         payload TEXT,
+        task_id INTEGER,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (agent_id) REFERENCES agents(agent_id)
+        FOREIGN KEY (agent_id) REFERENCES agents(agent_id),
+        FOREIGN KEY (task_id) REFERENCES tasks(task_id)
     )
     ''')
+
+    # Add task_id column to existing databases that don't have it yet
+    try:
+        cursor.execute('ALTER TABLE data_records ADD COLUMN task_id INTEGER REFERENCES tasks(task_id)')
+    except Exception:
+        pass  # Column already exists
 
     conn.commit()
     conn.close()

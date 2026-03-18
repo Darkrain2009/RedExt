@@ -497,6 +497,51 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     });
   }
+
+  // Auto-refresh: poll /api/tasks every 10 seconds and update status badges
+  async function refreshTaskStatuses() {
+    try {
+      const response = await fetch('/api/tasks');
+      if (!response.ok) return;
+      const tasks = await response.json();
+
+      const statusMap = {};
+      tasks.forEach(t => { statusMap[t.task_id] = t.status; });
+
+      let activeCount = 0;
+      let completed = 0;
+      tasks.forEach(t => {
+        if (t.status === 'pending' || t.status === 'in_progress') activeCount++;
+        if (t.status === 'completed') completed++;
+      });
+      const total = tasks.length;
+
+      // Update Active Tasks counter
+      const activeBadge = document.querySelector('.text-2xl.font-bold.text-gray-100');
+      if (activeBadge) activeBadge.textContent = activeCount;
+
+      // Update success rate
+      const rate = total > 0 ? Math.round(completed / total * 100) : 0;
+      const rateBadge = document.querySelectorAll('.text-2xl.font-bold.text-gray-100')[1];
+      if (rateBadge) rateBadge.textContent = rate + '%';
+
+      // Update individual task status badges without full reload
+      document.querySelectorAll('.task-card[data-status]').forEach(card => {
+        const taskId = card.querySelector('.task-checkbox')?.dataset?.taskId;
+        if (!taskId || !statusMap[taskId]) return;
+        const newStatus = statusMap[taskId];
+        const oldStatus = card.dataset.status;
+        if (newStatus !== oldStatus) {
+          // Status changed — reload the page to move card to correct panel
+          location.reload();
+        }
+      });
+    } catch (e) {
+      // Silently ignore network errors during background refresh
+    }
+  }
+
+  setInterval(refreshTaskStatuses, 10000);
 });
 </script>
 {% endblock %}
